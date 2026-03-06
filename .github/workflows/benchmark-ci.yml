@@ -1,0 +1,102 @@
+name: Benchmark CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: benchmark-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-and-benchmark:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      PYTHONUNBUFFERED: "1"
+      CARGO_TERM_COLOR: always
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . pytest
+
+      - name: Run Python tests
+        run: PYTHONPATH=. pytest -q
+
+      - name: Run Rust tests and lint
+        run: |
+          cd native/mojo_kernel_abi
+          cargo test -q
+          cargo clippy --all-targets -- -D warnings
+
+      - name: Export benchmark artifact and enforce gate
+        id: bench
+        shell: bash
+        run: |
+          set -euo pipefail
+          log_file="$(mktemp)"
+          set +e
+          PYTHONPATH=. python3 scripts/export_m31_benchmark_artifact.py \
+            --length 65536 \
+            --seed 20260305 \
+            --iters 80 \
+            --warmup-iters 40 \
+            --trim-ratio 0.1 \
+            --rayon-threads 2 \
+            --target-cpu-native on \
+            --interleaved on \
+            --disable-gc \
+            --min-trimmed-speedup 1.05 \
+            --min-median-speedup 1.01 \
+            --min-trimmed-speedup-ci-low 0.90 \
+            --max-native-p95-over-median 5.0 \
+            --bootstrap-resamples 2000 \
+            --bootstrap-confidence 0.95 \
+            --bootstrap-seed 20260305 \
+            2>&1 | tee "${log_file}"
+          rc=${PIPESTATUS[0]}
+          set -e
+
+          artifact_json="$(awk -F= '/^artifact_json=/{print $2}' "${log_file}" | tail -n1)"
+          artifact_markdown="$(awk -F= '/^artifact_markdown=/{print $2}' "${log_file}" | tail -n1)"
+
+          if [[ -n "${artifact_json}" ]]; then
+            echo "artifact_json=${artifact_json}" >> "${GITHUB_OUTPUT}"
+          fi
+          if [[ -n "${artifact_markdown}" ]]; then
+            echo "artifact_markdown=${artifact_markdown}" >> "${GITHUB_OUTPUT}"
+          fi
+
+          exit "${rc}"
+
+      - name: Upload benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m31-benchmark-${{ github.sha }}
+          path: |
+            ${{ steps.bench.outputs.artifact_json }}
+            ${{ steps.bench.outputs.artifact_markdown }}
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Append benchmark report to job summary
+        if: always() && steps.bench.outputs.artifact_markdown != ''
+        shell: bash
+        run: cat "${{ steps.bench.outputs.artifact_markdown }}" >> "${GITHUB_STEP_SUMMARY}"

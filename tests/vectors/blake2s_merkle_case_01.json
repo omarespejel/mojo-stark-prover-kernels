@@ -1,0 +1,16 @@
+{
+  "name": "blake2s_merkle_case_01",
+  "log_size": 2,
+  "columns": [
+    [1, 2, 3, 4],
+    [10, 20, 30, 40]
+  ],
+  "prev_layer_hashes": null,
+  "debug_level": 0,
+  "expected_hashes": [
+    "d04d438ab909774fda413934d344a51d239cab67f30b9fad6d3dc434ca35d63b",
+    "592318478425eca83ffcd7c2288de12cce76f3551429b76a09a83817aa39654c",
+    "9e5c66f5cb4f4f8ebe7bc4b31a960a2feb58cb4894697e94fe87b5eae527d682",
+    "ba36648789e545fa6d5d8e8dbc0afb5226a22a814648e36a9d40e28df9580d35"
+  ]
+}

@@ -1,0 +1,17 @@
+[package]
+name = "mojo_kernel_abi"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "unwind"
+
+[dependencies]
+blake2s_simd = "1.0"
+rayon = "1.10"

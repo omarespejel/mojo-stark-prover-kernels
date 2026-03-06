@@ -1,0 +1,21 @@
+[package]
+name = "mojo_kernel_abi-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.mojo_kernel_abi]
+path = ".."
+
+[[bin]]
+name = "abi_entrypoint"
+path = "fuzz_targets/abi_entrypoint.rs"
+test = false
+doc = false
+bench = false
