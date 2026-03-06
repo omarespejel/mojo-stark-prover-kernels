@@ -37,6 +37,7 @@ This repository is designed to let us ship in phases without compromising correc
 - `scripts/benchmark_m31_axpy.py`: benchmark reference vs native M31 AXPY kernel.
 - `scripts/check_m31_perf_gate.py`: regression gate for M31 performance thresholds.
 - `scripts/export_m31_benchmark_artifact.py`: one-shot benchmark + gate + reproducible JSON/Markdown artifact export.
+- `scripts/ci_perf_gate.py`: multi-run CI perf gate wrapper with aggregate decision logic.
 
 ## Quick start
 
@@ -49,13 +50,14 @@ python3 -m unittest discover -s tests -v
 
 - Workflow: `.github/workflows/benchmark-ci.yml`
 - Triggers: every `push`, `pull_request`, and manual `workflow_dispatch`
+- Security hardening: third-party actions are pinned to immutable commit SHAs
 - Enforced steps:
   - `PYTHONPATH=. pytest -q`
   - `cargo test -q` + `cargo clippy --all-targets -- -D warnings` in `native/mojo_kernel_abi`
-  - benchmark export + perf gate via `scripts/export_m31_benchmark_artifact.py`
+  - aggregate multi-run benchmark gate via `scripts/ci_perf_gate.py` (default `3` runs, require `2` passes)
 - Outputs per run:
-  - JSON + Markdown benchmark artifacts uploaded via GitHub Actions artifacts
-  - Markdown benchmark report appended to the job summary
+  - JSON + Markdown aggregate benchmark artifact uploaded via GitHub Actions artifacts
+  - Aggregate markdown benchmark report appended to the job summary
 
 Run local debug demo:
 
@@ -97,6 +99,12 @@ Export reproducible benchmark artifacts (JSON + Markdown):
 
 ```bash
 python3 scripts/export_m31_benchmark_artifact.py --length 65536 --iters 80 --warmup-iters 40 --target-cpu-native on --rayon-threads 8 --interleaved on --disable-gc --output-dir reports/benchmarks
+```
+
+Run CI-style multi-run perf gate locally:
+
+```bash
+python3 scripts/ci_perf_gate.py --runs 3 --min-pass-runs 2 --length 65536 --iters 80 --warmup-iters 40 --target-cpu-native on --rayon-threads 2 --interleaved on --disable-gc
 ```
 
 Optional (Linux): pin benchmark process to a stable CPU set to reduce scheduling noise:
