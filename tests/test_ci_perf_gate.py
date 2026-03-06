@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import unittest
 
 from scripts.ci_perf_gate import (
@@ -119,6 +120,44 @@ class CIBenchmarkGateTests(unittest.TestCase):
         self.assertIn("2", args)
         seed_idx = args.index("--seed")
         self.assertEqual(args[seed_idx + 1], "20260322")
+
+    def test_summarize_rejects_non_finite_metrics(self) -> None:
+        runs = [
+            RunResult(
+                index=1,
+                seed=1,
+                returncode=0,
+                artifact_json=None,
+                artifact_markdown=None,
+                trimmed_speedup=math.nan,
+                median_speedup=1.1,
+                ci_low=1.0,
+                tail_ratio=1.1,
+                stdout="",
+                stderr="",
+            )
+        ]
+        with self.assertRaises(ValueError):
+            summarize(runs)
+
+    def test_evaluate_aggregate_gate_rejects_non_finite_metrics(self) -> None:
+        metrics = AggregateMetrics(
+            runs_total=3,
+            runs_passed=3,
+            trimmed_median=math.nan,
+            median_speedup_median=1.1,
+            ci_low_median=1.0,
+            tail_ratio_median=1.2,
+        )
+        failures = evaluate_aggregate_gate(
+            metrics,
+            min_pass_runs=2,
+            min_trimmed_speedup=1.05,
+            min_median_speedup=1.01,
+            min_trimmed_speedup_ci_low=0.90,
+            max_native_p95_over_median=5.0,
+        )
+        self.assertTrue(any("non-finite" in failure for failure in failures))
 
 
 if __name__ == "__main__":

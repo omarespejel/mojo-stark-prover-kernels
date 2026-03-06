@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import json
+import math
 import os
 import platform
 from pathlib import Path
@@ -155,6 +156,9 @@ def metrics_to_dict(metrics: PerfMetrics) -> dict[str, float]:
         metrics_out["speedup_trimmed_ci_low_x"] = metrics.speedup_trimmed_ci_low
     if metrics.speedup_trimmed_ci_high is not None:
         metrics_out["speedup_trimmed_ci_high_x"] = metrics.speedup_trimmed_ci_high
+    for key, value in metrics_out.items():
+        if not math.isfinite(value):
+            raise ValueError(f"non-finite metric {key}: {value!r}")
     return metrics_out
 
 
@@ -298,7 +302,7 @@ def render_markdown_report(report: dict[str, Any]) -> str:
 
 def write_report_files(*, report: dict[str, Any], json_out: Path, md_out: Path | None) -> None:
     json_out.parent.mkdir(parents=True, exist_ok=True)
-    json_out.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    json_out.write_text(json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n")
     if md_out is not None:
         md_out.parent.mkdir(parents=True, exist_ok=True)
         md_out.write_text(render_markdown_report(report))
@@ -429,22 +433,25 @@ def main() -> int:
     )
     fingerprint = collect_environment_fingerprint(repo_root=repository_root())
 
-    report = build_report(
-        generated_at_utc=_format_utc(_utc_now()),
-        args=args,
-        metrics=metrics,
-        gate_failures=gate_failures,
-        reference_samples_ms=reference_samples,
-        native_samples_ms=native_samples,
-        native_artifact_path=artifact_path,
-        native_artifact_sha256=artifact_sha256,
-        fingerprint=fingerprint,
-    )
-    write_report_files(
-        report=report,
-        json_out=json_out,
-        md_out=None if args.no_markdown else md_out,
-    )
+    try:
+        report = build_report(
+            generated_at_utc=_format_utc(_utc_now()),
+            args=args,
+            metrics=metrics,
+            gate_failures=gate_failures,
+            reference_samples_ms=reference_samples,
+            native_samples_ms=native_samples,
+            native_artifact_path=artifact_path,
+            native_artifact_sha256=artifact_sha256,
+            fingerprint=fingerprint,
+        )
+        write_report_files(
+            report=report,
+            json_out=json_out,
+            md_out=None if args.no_markdown else md_out,
+        )
+    except ValueError as exc:
+        raise SystemExit(f"failed to serialize benchmark artifact: {exc}") from exc
 
     print(f"artifact_json={json_out}")
     if not args.no_markdown:

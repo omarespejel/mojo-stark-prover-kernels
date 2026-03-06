@@ -56,6 +56,7 @@ python3 -m unittest discover -s tests -v
   - `cargo test -q` + `cargo clippy --all-targets -- -D warnings` in `native/mojo_kernel_abi`
   - aggregate multi-run benchmark gate via `scripts/ci_perf_gate.py` (default `3` runs, require `2` passes)
   - each run uses a deterministic but different fixture seed (`--seed-step`) to reduce single-fixture bias
+  - benchmark artifacts enforce strict finite numeric metrics (`NaN`/`Inf` rejected during serialization)
 - Outputs per run:
   - JSON + Markdown aggregate benchmark artifact uploaded via GitHub Actions artifacts
   - Aggregate markdown benchmark report appended to the job summary
@@ -107,6 +108,8 @@ Run CI-style multi-run perf gate locally:
 ```bash
 python3 scripts/ci_perf_gate.py --runs 3 --min-pass-runs 2 --length 65536 --seed 20260305 --seed-step 7919 --iters 80 --warmup-iters 40 --target-cpu-native on --rayon-threads 2 --interleaved on --disable-gc
 ```
+
+Note: when `--runs > 1`, `--seed-step` must be greater than `0` so repeated runs sample distinct fixtures.
 
 Optional (Linux): pin benchmark process to a stable CPU set to reduce scheduling noise:
 
