@@ -20,6 +20,7 @@ EXPORT_SCRIPT = REPO_ROOT / "scripts" / "export_m31_benchmark_artifact.py"
 @dataclass(frozen=True)
 class RunResult:
     index: int
+    seed: int
     returncode: int
     artifact_json: Path | None
     artifact_markdown: Path | None
@@ -84,7 +85,7 @@ def _read_metrics(path: Path) -> tuple[float | None, float | None, float | None,
     return trimmed, median, ci_low, tail_ratio
 
 
-def run_once(run_index: int, export_args: list[str]) -> RunResult:
+def run_once(run_index: int, seed: int, export_args: list[str]) -> RunResult:
     cmd = [sys.executable, str(EXPORT_SCRIPT), *export_args]
     proc = subprocess.run(  # nosec B603
         cmd,
@@ -102,6 +103,7 @@ def run_once(run_index: int, export_args: list[str]) -> RunResult:
 
     return RunResult(
         index=run_index,
+        seed=seed,
         returncode=proc.returncode,
         artifact_json=artifact_json,
         artifact_markdown=artifact_markdown,
@@ -173,12 +175,12 @@ def evaluate_aggregate_gate(
     return failures
 
 
-def _build_export_args(args: argparse.Namespace) -> list[str]:
+def _build_export_args(args: argparse.Namespace, *, seed: int) -> list[str]:
     export_args: list[str] = [
         "--length",
         str(args.length),
         "--seed",
-        str(args.seed),
+        str(seed),
         "--iters",
         str(args.iters),
         "--warmup-iters",
@@ -230,6 +232,7 @@ def _write_aggregate_artifacts(
         "runs": [
             {
                 "index": r.index,
+                "seed": r.seed,
                 "returncode": r.returncode,
                 "artifact_json": str(r.artifact_json) if r.artifact_json is not None else None,
                 "artifact_markdown": (
@@ -276,7 +279,7 @@ def _write_aggregate_artifacts(
     lines.extend(["", "## Runs"])
     for r in results:
         lines.append(
-            f"- run {r.index}: rc={r.returncode} trimmed={r.trimmed_speedup} "
+            f"- run {r.index}: seed={r.seed} rc={r.returncode} trimmed={r.trimmed_speedup} "
             f"median={r.median_speedup} ci_low={r.ci_low} tail={r.tail_ratio}"
         )
         if r.artifact_json is not None:
@@ -292,6 +295,12 @@ def main() -> int:
     parser.add_argument("--min-pass-runs", type=int, default=2)
     parser.add_argument("--length", type=int, default=65536)
     parser.add_argument("--seed", type=int, default=20260305)
+    parser.add_argument(
+        "--seed-step",
+        type=int,
+        default=7919,
+        help="per-run seed increment for multi-run CI sampling",
+    )
     parser.add_argument("--iters", type=int, default=80)
     parser.add_argument("--warmup-iters", type=int, default=40)
     parser.add_argument("--trim-ratio", type=float, default=0.1)
@@ -324,9 +333,15 @@ def main() -> int:
         raise SystemExit("--runs must be positive")
     if args.min_pass_runs <= 0 or args.min_pass_runs > args.runs:
         raise SystemExit("--min-pass-runs must be in [1, --runs]")
+    if args.seed_step < 0:
+        raise SystemExit("--seed-step must be >= 0")
 
-    export_args = _build_export_args(args)
-    results = [run_once(i + 1, export_args) for i in range(args.runs)]
+    results: list[RunResult] = []
+    for i in range(args.runs):
+        run_index = i + 1
+        run_seed = args.seed + (i * args.seed_step)
+        export_args = _build_export_args(args, seed=run_seed)
+        results.append(run_once(run_index, run_seed, export_args))
 
     try:
         metrics = summarize(results)
