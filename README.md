@@ -49,12 +49,13 @@ python3 -m unittest discover -s tests -v
 ## CI automation
 
 - Workflow: `.github/workflows/benchmark-ci.yml`
-- Triggers: every `push`, `pull_request`, and manual `workflow_dispatch`
+- Triggers: `push` on `main`, all `pull_request`s, and manual `workflow_dispatch`
 - Security hardening: third-party actions are pinned to immutable commit SHAs
 - Enforced steps:
   - `PYTHONPATH=. pytest -q`
   - `cargo test -q` + `cargo clippy --all-targets -- -D warnings` in `native/mojo_kernel_abi`
   - aggregate multi-run benchmark gate via `scripts/ci_perf_gate.py` (default `3` runs, require `2` passes)
+  - each run uses a deterministic but different fixture seed (`--seed-step`) to reduce single-fixture bias
 - Outputs per run:
   - JSON + Markdown aggregate benchmark artifact uploaded via GitHub Actions artifacts
   - Aggregate markdown benchmark report appended to the job summary
@@ -104,7 +105,7 @@ python3 scripts/export_m31_benchmark_artifact.py --length 65536 --iters 80 --war
 Run CI-style multi-run perf gate locally:
 
 ```bash
-python3 scripts/ci_perf_gate.py --runs 3 --min-pass-runs 2 --length 65536 --iters 80 --warmup-iters 40 --target-cpu-native on --rayon-threads 2 --interleaved on --disable-gc
+python3 scripts/ci_perf_gate.py --runs 3 --min-pass-runs 2 --length 65536 --seed 20260305 --seed-step 7919 --iters 80 --warmup-iters 40 --target-cpu-native on --rayon-threads 2 --interleaved on --disable-gc
 ```
 
 Optional (Linux): pin benchmark process to a stable CPU set to reduce scheduling noise:

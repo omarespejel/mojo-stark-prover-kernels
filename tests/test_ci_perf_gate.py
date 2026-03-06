@@ -28,6 +28,7 @@ class CIBenchmarkGateTests(unittest.TestCase):
         runs = [
             RunResult(
                 index=1,
+                seed=1,
                 returncode=0,
                 artifact_json=None,
                 artifact_markdown=None,
@@ -40,6 +41,7 @@ class CIBenchmarkGateTests(unittest.TestCase):
             ),
             RunResult(
                 index=2,
+                seed=2,
                 returncode=1,
                 artifact_json=None,
                 artifact_markdown=None,
@@ -52,6 +54,7 @@ class CIBenchmarkGateTests(unittest.TestCase):
             ),
             RunResult(
                 index=3,
+                seed=3,
                 returncode=0,
                 artifact_json=None,
                 artifact_markdown=None,
@@ -110,10 +113,12 @@ class CIBenchmarkGateTests(unittest.TestCase):
             bootstrap_confidence = 0.95
             bootstrap_seed = 20260305
 
-        args = _build_export_args(Args())
+        args = _build_export_args(Args(), seed=20260322)
         self.assertIn("--disable-gc", args)
         self.assertIn("--rayon-threads", args)
         self.assertIn("2", args)
+        seed_idx = args.index("--seed")
+        self.assertEqual(args[seed_idx + 1], "20260322")
 
 
 if __name__ == "__main__":
