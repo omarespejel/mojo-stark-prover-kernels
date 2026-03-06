@@ -189,6 +189,7 @@ def build_report(
             "target_cpu_native": args.target_cpu_native,
             "interleaved": args.interleaved,
             "disable_gc": args.disable_gc,
+            "validate_m31_output": args.validate_m31_output,
             "bootstrap_resamples": args.bootstrap_resamples,
             "bootstrap_confidence": args.bootstrap_confidence,
             "bootstrap_seed": args.bootstrap_seed,
@@ -248,6 +249,7 @@ def render_markdown_report(report: dict[str, Any]) -> str:
             f"- target_cpu_native: `{params['target_cpu_native']}`",
             f"- interleaved: `{params['interleaved']}`",
             f"- disable_gc: `{params['disable_gc']}`",
+            f"- validate_m31_output: `{params['validate_m31_output']}`",
             "",
             "## Metrics",
             "",
@@ -336,6 +338,12 @@ def main() -> int:
         action="store_true",
         help="disable Python cyclic GC during benchmark timing loops",
     )
+    parser.add_argument(
+        "--validate-m31-output",
+        choices=["on", "off"],
+        default="off",
+        help="enable strict Python-side per-element output validation after native calls",
+    )
     parser.add_argument("--min-trimmed-speedup", type=float, default=1.05)
     parser.add_argument("--min-median-speedup", type=float, default=1.01)
     parser.add_argument("--min-trimmed-speedup-ci-low", type=float, default=0.90)
@@ -398,6 +406,7 @@ def main() -> int:
         artifact_path,
         allow_relative_path=True,
         expected_sha256=artifact_sha256,
+        validate_m31_output=(args.validate_m31_output == "on"),
     )
 
     if args.interleaved == "on":

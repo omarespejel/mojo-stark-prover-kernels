@@ -1,6 +1,7 @@
 use std::ffi::c_char;
 use std::mem;
 use std::slice;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use rayon::prelude::*;
 
@@ -27,6 +28,7 @@ const PARALLEL_MIN_ROWS: u32 = 512;
 const PARALLEL_MIN_CELLS: u64 = 32_768;
 const PARALLEL_MIN_CHUNK_ROWS: usize = 32;
 const PARALLEL_MIN_M31_LEN: usize = 16_384;
+const PARALLEL_MIN_M31_CHUNK: usize = 1024;
 
 const FLAG_NULL_COLUMNS: u32 = 1 << 0;
 const FLAG_NULL_OUT: u32 = 1 << 1;
@@ -243,24 +245,38 @@ unsafe fn m31_axpy_impl(
     let c = slice::from_raw_parts(c, len_usize);
     let out = slice::from_raw_parts_mut(out, len_usize);
 
-    for ((av, bv), cv) in a.iter().zip(b.iter()).zip(c.iter()) {
-        if *av >= M31_PRIME || *bv >= M31_PRIME || *cv >= M31_PRIME {
+    let use_parallel = should_use_parallel_m31(len_usize);
+    if use_parallel {
+        let invalid_input = AtomicBool::new(false);
+        out.par_iter_mut()
+            .with_min_len(PARALLEL_MIN_M31_CHUNK)
+            .zip(a.par_iter())
+            .zip(b.par_iter())
+            .zip(c.par_iter())
+            .for_each(|(((out_cell, av), bv), cv)| {
+                if *av >= M31_PRIME || *bv >= M31_PRIME || *cv >= M31_PRIME {
+                    invalid_input.store(true, Ordering::Relaxed);
+                    *out_cell = 0;
+                } else {
+                    *out_cell = m31_axpy_scalar(alpha, beta, *av, *bv, *cv);
+                }
+            });
+        if invalid_input.load(Ordering::Relaxed) {
             write_debug(debug_buffer, debug_buffer_len, "input value outside m31 field");
             return RC_INVALID_ARGUMENT;
         }
-    }
-
-    let use_parallel = should_use_parallel_m31(len_usize);
-    if use_parallel {
-        out.par_iter_mut()
-            .with_min_len(PARALLEL_MIN_CHUNK_ROWS)
-            .enumerate()
-            .for_each(|(i, out_cell)| {
-                *out_cell = m31_axpy_scalar(alpha, beta, a[i], b[i], c[i]);
-            });
     } else {
-        for i in 0..len_usize {
-            out[i] = m31_axpy_scalar(alpha, beta, a[i], b[i], c[i]);
+        for (((out_cell, av), bv), cv) in out
+            .iter_mut()
+            .zip(a.iter())
+            .zip(b.iter())
+            .zip(c.iter())
+        {
+            if *av >= M31_PRIME || *bv >= M31_PRIME || *cv >= M31_PRIME {
+                write_debug(debug_buffer, debug_buffer_len, "input value outside m31 field");
+                return RC_INVALID_ARGUMENT;
+            }
+            *out_cell = m31_axpy_scalar(alpha, beta, *av, *bv, *cv);
         }
     }
 

@@ -208,6 +208,12 @@ def main() -> int:
         action="store_true",
         help="disable Python cyclic GC during benchmark timing loops",
     )
+    parser.add_argument(
+        "--validate-m31-output",
+        choices=["on", "off"],
+        default="off",
+        help="enable strict Python-side per-element output validation after native calls",
+    )
     parser.add_argument("--trim-ratio", type=float, default=0.1)
     args = parser.parse_args()
 
@@ -234,7 +240,10 @@ def main() -> int:
     os.environ["MSPK_ENABLE_TARGET_CPU_NATIVE"] = "1" if args.target_cpu_native == "on" else "0"
 
     req = build_request(args.length, args.seed)
-    native = NativeRustM31Backend.build_and_create(release=True)
+    native = NativeRustM31Backend.build_and_create(
+        release=True,
+        validate_m31_output=(args.validate_m31_output == "on"),
+    )
 
     if args.interleaved == "on":
         ref_samples, nat_samples = run_bench_interleaved(
@@ -272,6 +281,7 @@ def main() -> int:
     print(f"target_cpu_native={args.target_cpu_native}")
     print(f"interleaved={args.interleaved}")
     print(f"disable_gc={args.disable_gc}")
+    print(f"validate_m31_output={args.validate_m31_output}")
     if args.rayon_threads is not None:
         print(f"rayon_threads={args.rayon_threads}")
     if affinity_effective is not None:
