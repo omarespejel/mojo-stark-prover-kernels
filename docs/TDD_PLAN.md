@@ -52,6 +52,7 @@
 - multi-run aggregate CI perf gate (reduce hosted-runner noise flakiness)
 - multi-seed CI fixtures (`seed + k*seed_step`) to reduce single-input overfitting
 - strict finite-metric artifact serialization (`NaN`/`Inf` hard-fail)
+- explicit strict-vs-fast M31 output validation mode (`--validate-m31-output`)
 2. Add benchmark artifacts per commit.
 - implemented: `scripts/export_m31_benchmark_artifact.py` (JSON + Markdown + fingerprint)
 3. Add reproducible CI matrix for x86_64/aarch64.

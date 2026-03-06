@@ -88,19 +88,19 @@ python3 scripts/benchmark_backends.py --log-size 9 --columns 32 --iters 30 --war
 Run benchmark for M31 batch linear-combination hotspot:
 
 ```bash
-python3 scripts/benchmark_m31_axpy.py --length 65536 --iters 20 --warmup-iters 10 --target-cpu-native on --rayon-threads 8 --interleaved on
+python3 scripts/benchmark_m31_axpy.py --length 65536 --iters 20 --warmup-iters 10 --target-cpu-native on --rayon-threads 8 --interleaved on --validate-m31-output off
 ```
 
 Run perf regression gate for M31 hotspot:
 
 ```bash
-python3 scripts/check_m31_perf_gate.py --length 65536 --iters 80 --warmup-iters 40 --target-cpu-native on --rayon-threads 8 --interleaved on --disable-gc --min-trimmed-speedup 1.05 --min-trimmed-speedup-ci-low 0.90
+python3 scripts/check_m31_perf_gate.py --length 65536 --iters 80 --warmup-iters 40 --target-cpu-native on --rayon-threads 8 --interleaved on --disable-gc --validate-m31-output off --min-trimmed-speedup 1.05 --min-trimmed-speedup-ci-low 0.90
 ```
 
 Export reproducible benchmark artifacts (JSON + Markdown):
 
 ```bash
-python3 scripts/export_m31_benchmark_artifact.py --length 65536 --iters 80 --warmup-iters 40 --target-cpu-native on --rayon-threads 8 --interleaved on --disable-gc --output-dir reports/benchmarks
+python3 scripts/export_m31_benchmark_artifact.py --length 65536 --iters 80 --warmup-iters 40 --target-cpu-native on --rayon-threads 8 --interleaved on --disable-gc --validate-m31-output off --output-dir reports/benchmarks
 ```
 
 Run CI-style multi-run perf gate locally:
@@ -110,6 +110,7 @@ python3 scripts/ci_perf_gate.py --runs 3 --min-pass-runs 2 --length 65536 --seed
 ```
 
 Note: when `--runs > 1`, `--seed-step` must be greater than `0` so repeated runs sample distinct fixtures.
+Note: M31 benchmark scripts default to `--validate-m31-output off` to measure kernel throughput; use `--validate-m31-output on` for strict per-element host-side checking.
 
 Optional (Linux): pin benchmark process to a stable CPU set to reduce scheduling noise:
 

@@ -100,6 +100,7 @@ class MojoSharedLibraryBackend:
         debug_buffer_size: int = 4096,
         cache_max_entries: int = 8,
         expected_sha256: str | None = None,
+        validate_m31_output: bool | None = None,
     ) -> None:
         if debug_buffer_size < 128 or debug_buffer_size > 1_000_000:
             raise ValueError("debug_buffer_size must be in [128, 1_000_000]")
@@ -143,6 +144,9 @@ class MojoSharedLibraryBackend:
 
         self._debug_buffer_size = debug_buffer_size
         self._cache_max_entries = cache_max_entries
+        if validate_m31_output is None:
+            validate_m31_output = _env_flag_enabled_default_true("MSPK_VALIDATE_M31_OUTPUT")
+        self._validate_m31_output = validate_m31_output
         self._prepared_cache: OrderedDict[CommitLayerRequest, _PreparedRequestBuffers] = (
             OrderedDict()
         )
@@ -290,7 +294,8 @@ class MojoSharedLibraryBackend:
 
         # Converting directly from ctypes array is measurably faster than per-element int().
         result = tuple(out_arr)
-        _validate_m31_result(result, expected_len=request.length)
+        if self._validate_m31_output:
+            _validate_m31_result(result, expected_len=request.length)
         if tracer is not None:
             tracer.emit(1, f"mojo m31 call done len={len(result)}")
         return result
@@ -441,6 +446,13 @@ def _env_flag_enabled(name: str) -> bool:
     value = os.environ.get(name)
     if value is None:
         return False
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_flag_enabled_default_true(name: str) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return True
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 

@@ -11,9 +11,10 @@ from mojo_stark_prover_kernels.backends import (
     EXPECTED_KERNEL_ABI_VERSION,
     BackendExecutionError,
     MojoSharedLibraryBackend,
+    _env_flag_enabled,
+    _env_flag_enabled_default_true,
     _normalize_sha256_hex,
     _run_m31_kernel_self_test,
-    _env_flag_enabled,
     _validate_kernel_abi_version,
     _validate_library_sha256,
     _validate_m31_result,
@@ -241,6 +242,32 @@ class MojoSharedLibraryBackendSecurityTests(unittest.TestCase):
                 self.assertFalse(_env_flag_enabled("MSPK_TEST_FLAG"))
             os.environ.pop("MSPK_TEST_FLAG", None)
             self.assertFalse(_env_flag_enabled("MSPK_TEST_FLAG"))
+        finally:
+            if original is None:
+                os.environ.pop("MSPK_TEST_FLAG", None)
+            else:
+                os.environ["MSPK_TEST_FLAG"] = original
+
+    def test_env_flag_enabled_default_true_values(self) -> None:
+        original = os.environ.get("MSPK_TEST_FLAG")
+        try:
+            for value in ("1", "true", "TRUE", "yes", "on"):
+                os.environ["MSPK_TEST_FLAG"] = value
+                self.assertTrue(_env_flag_enabled_default_true("MSPK_TEST_FLAG"))
+            os.environ.pop("MSPK_TEST_FLAG", None)
+            self.assertTrue(_env_flag_enabled_default_true("MSPK_TEST_FLAG"))
+        finally:
+            if original is None:
+                os.environ.pop("MSPK_TEST_FLAG", None)
+            else:
+                os.environ["MSPK_TEST_FLAG"] = original
+
+    def test_env_flag_enabled_default_true_false_values(self) -> None:
+        original = os.environ.get("MSPK_TEST_FLAG")
+        try:
+            for value in ("0", "false", "no", "off", "random"):
+                os.environ["MSPK_TEST_FLAG"] = value
+                self.assertFalse(_env_flag_enabled_default_true("MSPK_TEST_FLAG"))
         finally:
             if original is None:
                 os.environ.pop("MSPK_TEST_FLAG", None)

@@ -162,6 +162,7 @@ class NativeRustM31Backend(MojoSharedLibraryBackend):
         *,
         release: bool = True,
         debug_buffer_size: int = 4096,
+        validate_m31_output: bool | None = None,
     ) -> "NativeRustM31Backend":
         artifact, artifact_sha256 = build_native_kernel_with_sha256(release=release)
         return cls(
@@ -169,4 +170,5 @@ class NativeRustM31Backend(MojoSharedLibraryBackend):
             allow_relative_path=True,
             debug_buffer_size=debug_buffer_size,
             expected_sha256=artifact_sha256,
+            validate_m31_output=validate_m31_output,
         )
