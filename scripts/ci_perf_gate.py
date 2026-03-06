@@ -7,6 +7,7 @@ import argparse
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
+import math
 import statistics
 import subprocess  # nosec B404
 import sys
@@ -68,7 +69,7 @@ def _float_from_metrics(metrics: dict[str, object], key: str) -> float | None:
     raw = metrics.get(key)
     if raw is None:
         return None
-    if isinstance(raw, int | float):
+    if isinstance(raw, int | float) and not isinstance(raw, bool):
         return float(raw)
     return None
 
@@ -119,7 +120,17 @@ def run_once(run_index: int, seed: int, export_args: list[str]) -> RunResult:
 def _median_or_fail(values: list[float], label: str) -> float:
     if not values:
         raise ValueError(f"no values for {label}")
-    return float(statistics.median(values))
+    for value in values:
+        if not math.isfinite(value):
+            raise ValueError(f"non-finite value for {label}: {value!r}")
+        if value <= 0:
+            raise ValueError(f"non-positive value for {label}: {value!r}")
+    median = float(statistics.median(values))
+    if not math.isfinite(median):
+        raise ValueError(f"non-finite median for {label}: {median!r}")
+    if median <= 0:
+        raise ValueError(f"non-positive median for {label}: {median!r}")
+    return median
 
 
 def summarize(results: list[RunResult]) -> AggregateMetrics:
@@ -148,6 +159,18 @@ def evaluate_aggregate_gate(
     max_native_p95_over_median: float,
 ) -> list[str]:
     failures: list[str] = []
+    finite_checks = [
+        ("aggregate trimmed speedup", metrics.trimmed_median),
+        ("aggregate median speedup", metrics.median_speedup_median),
+        ("aggregate CI lower-bound", metrics.ci_low_median),
+        ("aggregate native tail ratio", metrics.tail_ratio_median),
+    ]
+    for label, value in finite_checks:
+        if not math.isfinite(value):
+            failures.append(f"{label} is non-finite: {value!r}")
+            continue
+        if value <= 0:
+            failures.append(f"{label} must be positive: {value!r}")
     if metrics.runs_passed < min_pass_runs:
         failures.append(
             f"insufficient passing runs: {metrics.runs_passed}/{metrics.runs_total} < {min_pass_runs}"
@@ -258,7 +281,7 @@ def _write_aggregate_artifacts(
             "failures": failures,
         },
     }
-    out_json.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    out_json.write_text(json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n")
 
     lines = [
         "# CI Benchmark Aggregate",
@@ -335,6 +358,8 @@ def main() -> int:
         raise SystemExit("--min-pass-runs must be in [1, --runs]")
     if args.seed_step < 0:
         raise SystemExit("--seed-step must be >= 0")
+    if args.runs > 1 and args.seed_step == 0:
+        raise SystemExit("--seed-step must be > 0 when --runs > 1")
 
     results: list[RunResult] = []
     for i in range(args.runs):
@@ -358,10 +383,10 @@ def main() -> int:
         metrics = AggregateMetrics(
             runs_total=len(results),
             runs_passed=sum(1 for r in results if r.passed),
-            trimmed_median=float("nan"),
-            median_speedup_median=float("nan"),
-            ci_low_median=float("nan"),
-            tail_ratio_median=float("nan"),
+            trimmed_median=0.0,
+            median_speedup_median=0.0,
+            ci_low_median=0.0,
+            tail_ratio_median=0.0,
         )
 
     stamp = _stamp(_now_utc())

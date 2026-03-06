@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,6 +12,7 @@ from scripts.check_m31_perf_gate import PerfMetrics
 from scripts.export_m31_benchmark_artifact import (
     build_report,
     collect_environment_fingerprint,
+    metrics_to_dict,
     render_markdown_report,
     resolve_output_paths,
     write_report_files,
@@ -168,6 +170,38 @@ class M31BenchmarkArtifactTests(unittest.TestCase):
             self.assertTrue(md_out.exists())
             loaded = json.loads(json_out.read_text())
             self.assertEqual(loaded["schema_version"], 1)
+
+    def test_metrics_to_dict_rejects_non_finite_metrics(self) -> None:
+        bad = PerfMetrics(
+            ref_mean=100.0,
+            ref_median=100.0,
+            ref_p95=110.0,
+            ref_trimmed=100.0,
+            nat_mean=80.0,
+            nat_median=0.0,
+            nat_p95=90.0,
+            nat_trimmed=80.0,
+            speedup_mean=1.25,
+            speedup_median=1.25,
+            speedup_trimmed=1.25,
+        )
+        with self.assertRaises(ValueError):
+            metrics_to_dict(bad)
+
+    def test_write_report_files_rejects_non_finite_json_numbers(self) -> None:
+        report = {
+            "schema_version": 1,
+            "generated_at_utc": "2026-03-06T00:00:00Z",
+            "gate": {"pass": True, "failures": []},
+            "parameters": {"length": 1},
+            "metrics": {"speedup_trimmed_mean_x": math.nan},
+            "native_artifact": {"path": "/tmp/lib.so", "sha256": "ab" * 32},
+            "fingerprint": {"platform": {}, "cpu": {}, "runtime_flags": {}, "toolchain": {}, "git": {}},
+        }
+        with tempfile.TemporaryDirectory() as d:
+            json_out = Path(d) / "artifact.json"
+            with self.assertRaises(ValueError):
+                write_report_files(report=report, json_out=json_out, md_out=None)
 
 
 if __name__ == "__main__":
